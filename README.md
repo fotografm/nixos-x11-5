@@ -482,11 +482,23 @@ git pull && sudo nixos-rebuild switch --flake .#x11-5
 ## Launch a Debian container with a static LAN IP
 
 ```
-incus launch images:debian/13 test1
+incus launch images:debian/12 test1
 ```
 
+Because `br0` is an unmanaged bridge, Incus cannot assign IPs via `ipv4.address` — that only works with Incus-managed networks. Set the static IP **inside** the container instead:
+
 ```
-incus config device override test1 eth0 ipv4.address=192.168.8.126
+incus exec test1 -- bash -c 'cat > /etc/systemd/network/eth0.network <<EOF
+[Match]
+Name=eth0
+
+[Network]
+Address=192.168.8.126/24
+Gateway=192.168.8.1
+DNS=192.168.8.70
+DNS=1.1.1.1
+DNS=9.9.9.9
+EOF'
 ```
 
 ```
@@ -498,6 +510,8 @@ incus list
 ```
 
 The container should appear with `192.168.8.126` on the LAN, reachable from any other host on 192.168.8.0/24 (and via Tailscale from your Brighton workstation).
+
+> **Note**: Debian 12 images use systemd-networkd. The file `/etc/systemd/network/eth0.network` already exists with DHCP config — overwriting it and restarting is all that's needed. Adjust the `Address=` line per container.
 
 ## Launch a VM (full QEMU/KVM)
 
