@@ -138,32 +138,71 @@ git push -u origin main
 
 ## Phase 2: Install via IPMI
 
-### 2.1. Serve the ISO over HTTP and mount it via IPMI Virtual Media
+### 2.1. Create a Samba share on the workstation and mount it via IPMI Virtual Media
 
-x11-5's BMC has an OOB licence activated, which enables HTTP-based virtual media mounting.
+The BMC on x11-5 uses SMB virtual media (HTTP virtual media is not supported on this firmware). Run these steps on your workstation (192.168.8.99).
 
-**On your workstation** (192.168.8.99), start a one-liner HTTP server in the directory containing the ISO:
+**Install Samba and create the share directory:**
 
 ```
-cd ~/Downloads && python3 -m http.server 8000
+sudo apt install samba -y
 ```
 
-**In the IPMI web UI** at `http://192.168.8.81`:
+```
+mkdir ~/share
+```
 
-1. Open **Virtual Media** → **CD-ROM Image**.
-2. Set the fields:
-   - **Host**: `192.168.8.99`
-   - **Path**: `/nixos-minimal-26.05-x86_64-linux.iso`
-   - **Protocol**: HTTP (select from dropdown if present)
-3. Click **Mount**.
-4. Reboot x11-5.
-5. As the system POSTs, press **F11** to open the BIOS Boot Selection menu and pick the **virtual CD/DVD** entry (the one whose name contains "ATEN" or "Virtual CD").
+Copy the NixOS ISO into `~/share/`.
+
+**Edit `/etc/samba/smb.conf`** — add the following two lines inside the existing `[global]` section under `## Browsing/Identification ###`:
+
+```
+server min protocol = NT1
+server max protocol = SMB3
+```
+
+Then append the following at the **end of the file**:
+
+```
+[share]
+path = /home/user/share
+browseable = yes
+read only = no
+guest ok = yes
+force user = user
+
+[global]
+server min protocol = NT1
+```
+
+**Restart Samba:**
+
+```
+sudo systemctl restart smbd
+```
+
+**Test the share is accessible:**
+
+```
+smbclient //192.168.8.99/share -N -c "ls"
+```
+
+You should see the ISO listed with no `ACCESS_DENIED` error.
+
+**In the IPMI web UI** at `http://192.168.8.81`, open **Virtual Media** → **CD-ROM Image** and set:
+
+- **Share Host**: `192.168.8.99`
+- **Path to Image**: `\share\nixos-minimal-26.05.3494.714a5f8c4ead-x86_64-linux.iso`
+
+> **Path syntax note**: the share name (`\share\`) is part of the path, not a separate field. Use backslashes exactly as shown.
+
+Click **Mount**, then click **Reload** / check the ISO file status — it should show the file as mounted before you proceed.
+
+**Reboot x11-5** and as the system POSTs, press **F11** to open the BIOS Boot Selection menu and pick the **virtual CD/DVD** entry (the one whose name contains "ATEN" or "Virtual CD").
 
 The one-time boot menu overrides whatever is in the BIOS boot order. If you miss F11 and the existing OS boots, just reboot and try again.
 
 The NixOS installer drops to a TTY running as user `nixos` with no password.
-
-> **Once the installer has booted**, you can stop the HTTP server on your workstation (Ctrl+C) — the ISO is already in memory / streamed.
 
 ### 2.2. Enable SSH inside the installer
 
@@ -556,12 +595,15 @@ The web UI on `:8443` will also accept the client cert installed by `incus remot
 
 You missed the F11 one-time boot menu. Reboot and try again — when you see the Supermicro POST screen, hammer F11 until the **Please select boot device** menu appears, then pick the virtual CD entry. Alternatively, in the BIOS itself (F2 or DEL on POST) set the virtual CD as the first boot device permanently for the duration of the install, then change it back to SSD after.
 
-## HTTP virtual media mount fails or is slow
+## Samba virtual media — `ACCESS_DENIED` when testing the share
 
-- Confirm the HTTP server is running on the workstation: `curl -I http://192.168.8.99:8000/nixos-minimal-26.05-x86_64-linux.iso`
-- The IPMI BMC must be able to reach 192.168.8.99 — verify by pinging from the BMC network tool if available.
-- If the ISO path contains spaces or special characters, rename it to remove them.
-- As a fallback, use the iKVM / HTML5 console's built-in virtual media upload (slower, streams from your browser).
+The guest/nobody unix user can't read the share directory. Make sure `force user = user` is present in the `[share]` stanza and restart smbd:
+
+```
+sudo systemctl restart smbd
+```
+
+Then re-test: `smbclient //192.168.8.99/share -N -c "ls"`
 
 ## "device is mounted" or "GPT signature found" warnings from parted
 
