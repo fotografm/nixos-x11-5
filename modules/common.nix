@@ -75,5 +75,7 @@
     btrfs-progs    # btrfs CLI for inspecting the Incus pool
     file
     jq
+    btop
+    cmatrix
   ];
 }
