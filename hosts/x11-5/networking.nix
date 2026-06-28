@@ -22,7 +22,7 @@ in {
   networking.bridges.br0.interfaces = [ physicalNic ];
 
   networking.interfaces.br0.ipv4.addresses = [{
-    address = "192.168.8.50";
+    address = "192.168.8.80";
     prefixLength = 24;
   }];
 

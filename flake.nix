@@ -11,13 +11,13 @@
   in {
     nixosConfigurations = {
 
-      # Supermicro X11 server at c38 (192.168.8.50).
+      # Supermicro X11 server at c38 (192.168.8.80).
       # Incus hypervisor host.
-      x11-4 = nixpkgs.lib.nixosSystem {
+      x11-5 = nixpkgs.lib.nixosSystem {
         inherit system;
         modules = [
           ./modules/common.nix
-          ./hosts/x11-4
+          ./hosts/x11-5
         ];
       };
 

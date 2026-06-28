@@ -6,7 +6,7 @@ NixOS flake for the fotografm homelab fleet, managed declaratively.
 
 | Host | Location | IP | Role |
 |---|---|---|---|
-| `x11-4` | c38 | `192.168.8.50` | Incus hypervisor (containers + VMs) |
+| `x11-5` | c38 | `192.168.8.80` | Incus hypervisor (containers + VMs) |
 
 ## Repository layout
 
@@ -18,10 +18,10 @@ nixos-config/
 ├── modules/
 │   └── common.nix                      # shared config (SSH, user, base packages)
 └── hosts/
-    └── x11-4/
+    └── x11-5/
         ├── default.nix                 # host-level: bootloader, hostname
         ├── hardware-configuration.nix  # generated during install
-        ├── networking.nix              # bridge br0 + static IP 192.168.8.50
+        ├── networking.nix              # bridge br0 + static IP 192.168.8.80
         └── incus.nix                   # virtualisation.incus + preseed
 ```
 
@@ -33,16 +33,17 @@ nixos-config/
 | Incus storage | btrfs on /dev/sda3 | Instant snapshots/clones (CoW), no ZFS RAM cost |
 | Networking | Linux bridge `br0` enslaving physical NIC | Containers get real LAN IPs (Proxmox vmbr0 equivalent) |
 | Container IPs | Static per container via `incus config device set` | Declarative, no router-side DHCP reservations |
-| Container IP range | 192.168.8.175–199 (convention) | Reserved by hand for x11-4 instances |
+| Container IP range | 192.168.8.126–149 (convention) | Reserved by hand for x11-5 instances |
 | NixOS channel | nixos-26.05 ("Yarara") | Current stable |
 | Incus | feature release (`pkgs.incus`) | Latest features; switch to `incus-lts` later if desired |
 
 ## Host network plan
 
-- Host: `x11-4` at `192.168.8.50/24`
+- Host: `x11-5` at `192.168.8.80/24`
+- IPMI BMC: `192.168.8.81`
 - Gateway: `192.168.8.1`
 - DNS: `192.168.8.70` (Pi-hole at c38), fallbacks `1.1.1.1`, `9.9.9.9`
-- Incus REST API + Web UI: `https://192.168.8.50:8443`
+- Incus REST API + Web UI: `https://192.168.8.80:8443`
 
 ## Partition layout (240 GB SSD at /dev/sda)
 
@@ -65,7 +66,7 @@ Three phases:
 ## Prerequisites
 
 - Workstation with `git`, `ssh`, `scp`, `gh` (GitHub CLI) installed.
-- Network access to the X11's IPMI BMC (via Tailscale subnet route to 192.168.8.0/24).
+- Network access to the x11-5 IPMI BMC at `192.168.8.81` (via Tailscale subnet route to 192.168.8.0/24).
 - NixOS 26.05 minimal ISO downloaded from <https://nixos.org/download/#nixos-iso>.
 - Your SSH public key at hand.
 
@@ -80,7 +81,7 @@ Three phases:
 Place all the files from this repository skeleton under `~/repos/nixos-config/`:
 
 ```
-mkdir -p ~/repos/nixos-config/{modules,hosts/x11-4}
+mkdir -p ~/repos/nixos-config/{modules,hosts/x11-5}
 ```
 
 Copy the downloaded files in:
@@ -89,9 +90,9 @@ Copy the downloaded files in:
 - `gitignore` → `~/repos/nixos-config/.gitignore`
 - `README.md` → `~/repos/nixos-config/README.md`
 - `common.nix` → `~/repos/nixos-config/modules/common.nix`
-- `x11-4-default.nix` → `~/repos/nixos-config/hosts/x11-4/default.nix`
-- `x11-4-networking.nix` → `~/repos/nixos-config/hosts/x11-4/networking.nix`
-- `x11-4-incus.nix` → `~/repos/nixos-config/hosts/x11-4/incus.nix`
+- `x11-5-default.nix` → `~/repos/nixos-config/hosts/x11-5/default.nix`
+- `x11-5-networking.nix` → `~/repos/nixos-config/hosts/x11-5/networking.nix`
+- `x11-5-incus.nix` → `~/repos/nixos-config/hosts/x11-5/incus.nix`
 
 ### 1.2. Add your SSH public key
 
@@ -116,7 +117,7 @@ git add -A
 ```
 
 ```
-git commit -m "Initial flake: x11-4 host skeleton"
+git commit -m "Initial flake: x11-5 host skeleton"
 ```
 
 ### 1.4. Create the private GitHub repo and push (SSH remote)
@@ -137,18 +138,32 @@ git push -u origin main
 
 ## Phase 2: Install via IPMI
 
-### 2.1. Mount the ISO and force boot from virtual media
+### 2.1. Serve the ISO over HTTP and mount it via IPMI Virtual Media
 
-In the Supermicro IPMI web UI:
+x11-5's BMC has an OOB licence activated, which enables HTTP-based virtual media mounting.
 
-1. Open the iKVM / HTML5 console.
-2. **Virtual Media** → mount the NixOS 26.05 minimal ISO.
-3. Reboot the X11.
-4. As the system POSTs, press **F11** to open the BIOS Boot Selection menu and pick the **virtual CD/DVD** entry (the one whose name contains "ATEN" or "Virtual CD").
+**On your workstation** (192.168.8.99), start a one-liner HTTP server in the directory containing the ISO:
 
-The one-time boot menu overrides whatever is in the BIOS boot order, so the SSD never gets a chance to boot the existing OS. If you miss F11 and the existing OS boots, just reboot and try again.
+```
+cd ~/Downloads && python3 -m http.server 8000
+```
+
+**In the IPMI web UI** at `http://192.168.8.81`:
+
+1. Open **Virtual Media** → **CD-ROM Image**.
+2. Set the fields:
+   - **Host**: `192.168.8.99`
+   - **Path**: `/nixos-minimal-26.05-x86_64-linux.iso`
+   - **Protocol**: HTTP (select from dropdown if present)
+3. Click **Mount**.
+4. Reboot x11-5.
+5. As the system POSTs, press **F11** to open the BIOS Boot Selection menu and pick the **virtual CD/DVD** entry (the one whose name contains "ATEN" or "Virtual CD").
+
+The one-time boot menu overrides whatever is in the BIOS boot order. If you miss F11 and the existing OS boots, just reboot and try again.
 
 The NixOS installer drops to a TTY running as user `nixos` with no password.
+
+> **Once the installer has booted**, you can stop the HTTP server on your workstation (Ctrl+C) — the ISO is already in memory / streamed.
 
 ### 2.2. Enable SSH inside the installer
 
@@ -188,8 +203,8 @@ ip -o link
 
 Note the name of the physical ethernet (almost certainly `eno1` on a Supermicro X11, but verify). If it is **not** `eno1`, on the **workstation**:
 
-1. Edit `~/repos/nixos-config/hosts/x11-4/networking.nix`, change `physicalNic = "eno1";` to the real name.
-2. `git add hosts/x11-4/networking.nix && git commit -m "Set physicalNic for x11-4" && git push`.
+1. Edit `~/repos/nixos-config/hosts/x11-5/networking.nix`, change `physicalNic = "eno1";` to the real name.
+2. `git add hosts/x11-5/networking.nix && git commit -m "Set physicalNic for x11-5" && git push`.
 
 ### 2.4. Wipe the existing SSD
 
@@ -298,7 +313,7 @@ This produces `/mnt/etc/nixos/hardware-configuration.nix`.
 On the **workstation**:
 
 ```
-scp root@<installer-ip>:/mnt/etc/nixos/hardware-configuration.nix ~/repos/nixos-config/hosts/x11-4/hardware-configuration.nix
+scp root@<installer-ip>:/mnt/etc/nixos/hardware-configuration.nix ~/repos/nixos-config/hosts/x11-5/hardware-configuration.nix
 ```
 
 ```
@@ -306,11 +321,11 @@ cd ~/repos/nixos-config
 ```
 
 ```
-git add hosts/x11-4/hardware-configuration.nix
+git add hosts/x11-5/hardware-configuration.nix
 ```
 
 ```
-git commit -m "Add hardware-configuration.nix for x11-4"
+git commit -m "Add hardware-configuration.nix for x11-5"
 ```
 
 ```
@@ -330,7 +345,7 @@ scp -r ~/repos/nixos-config root@<installer-ip>:/tmp/nixos-config
 Back in the installer SSH session:
 
 ```
-nixos-install --flake /tmp/nixos-config#x11-4 --no-root-passwd
+nixos-install --flake /tmp/nixos-config#x11-5 --no-root-passwd
 ```
 
 This builds the system from your flake and writes it to `/mnt`. Expect 5–20 minutes depending on download speed (it pulls ~3 GB of packages on first install).
@@ -347,7 +362,7 @@ In the IPMI UI: **unmount the virtual ISO** so the BIOS now boots from the SSD, 
 reboot
 ```
 
-The host should come up on `192.168.8.50` via `br0`, sshd listening, your SSH key working.
+The host should come up on `192.168.8.80` via `br0`, sshd listening, your SSH key working.
 
 ---
 
@@ -358,7 +373,7 @@ The host should come up on `192.168.8.50` via `br0`, sshd listening, your SSH ke
 From the workstation:
 
 ```
-ssh user@192.168.8.50
+ssh user@192.168.8.80
 ```
 
 ### 3.2. Verify Incus is up
@@ -379,10 +394,10 @@ incus profile show default
 
 You should see the bridged `eth0` device with `parent: br0`.
 
-### 3.3. Generate an SSH key on x11-4 for GitHub
+### 3.3. Generate an SSH key on x11-5 for GitHub
 
 ```
-ssh-keygen -t ed25519 -C "x11-4@c38" -f ~/.ssh/id_ed25519 -N ""
+ssh-keygen -t ed25519 -C "x11-5@c38" -f ~/.ssh/id_ed25519 -N ""
 ```
 
 ```
@@ -391,7 +406,7 @@ cat ~/.ssh/id_ed25519.pub
 
 In the GitHub web UI: **Settings → Deploy keys** on `fotografm/nixos-config` → **Add deploy key** → paste, untick "Allow write access" (read-only is enough for rebuilds).
 
-### 3.4. Clone the repo on x11-4
+### 3.4. Clone the repo on x11-5
 
 ```
 mkdir -p ~/repos
@@ -403,22 +418,22 @@ git clone git@github.com:fotografm/nixos-config.git ~/repos/nixos-config
 
 ### 3.5. Future rebuilds
 
-From `~/repos/nixos-config` on x11-4:
+From `~/repos/nixos-config` on x11-5:
 
 ```
-sudo nixos-rebuild switch --flake .#x11-4
+sudo nixos-rebuild switch --flake .#x11-5
 ```
 
 Or, to test changes without committing:
 
 ```
-sudo nixos-rebuild test --flake .#x11-4
+sudo nixos-rebuild test --flake .#x11-5
 ```
 
 To pull and rebuild in one go:
 
 ```
-git pull && sudo nixos-rebuild switch --flake .#x11-4
+git pull && sudo nixos-rebuild switch --flake .#x11-5
 ```
 
 ---
@@ -432,7 +447,7 @@ incus launch images:debian/13 test1
 ```
 
 ```
-incus config device override test1 eth0 ipv4.address=192.168.8.175
+incus config device override test1 eth0 ipv4.address=192.168.8.126
 ```
 
 ```
@@ -443,7 +458,7 @@ incus restart test1
 incus list
 ```
 
-The container should appear with `192.168.8.175` on the LAN, reachable from any other host on 192.168.8.0/24 (and via Tailscale from your Brighton workstation).
+The container should appear with `192.168.8.126` on the LAN, reachable from any other host on 192.168.8.0/24 (and via Tailscale from your Brighton workstation).
 
 ## Launch a VM (full QEMU/KVM)
 
@@ -505,15 +520,15 @@ incus copy test1 test1-clone
 
 ## Incus web UI
 
-Browse to <https://192.168.8.50:8443>.
+Browse to <https://192.168.8.80:8443>.
 
-You will see a "client certificate required" page. Easiest path: from your workstation, generate an Incus client cert and trust it on x11-4.
+You will see a "client certificate required" page. Easiest path: from your workstation, generate an Incus client cert and trust it on x11-5.
 
 ```
-incus remote add x11-4 https://192.168.8.50:8443
+incus remote add x11-5 https://192.168.8.80:8443
 ```
 
-This prompts for a trust token. Generate one on x11-4:
+This prompts for a trust token. Generate one on x11-5:
 
 ```
 incus config trust add --name workstation
@@ -522,13 +537,13 @@ incus config trust add --name workstation
 Copy the token printed, paste into the prompt on the workstation. After that:
 
 ```
-incus --target x11-4 list
+incus --target x11-5 list
 ```
 
-Or set x11-4 as the default remote:
+Or set x11-5 as the default remote:
 
 ```
-incus remote switch x11-4
+incus remote switch x11-5
 ```
 
 The web UI on `:8443` will also accept the client cert installed by `incus remote add`.
@@ -541,15 +556,22 @@ The web UI on `:8443` will also accept the client cert installed by `incus remot
 
 You missed the F11 one-time boot menu. Reboot and try again — when you see the Supermicro POST screen, hammer F11 until the **Please select boot device** menu appears, then pick the virtual CD entry. Alternatively, in the BIOS itself (F2 or DEL on POST) set the virtual CD as the first boot device permanently for the duration of the install, then change it back to SSD after.
 
+## HTTP virtual media mount fails or is slow
+
+- Confirm the HTTP server is running on the workstation: `curl -I http://192.168.8.99:8000/nixos-minimal-26.05-x86_64-linux.iso`
+- The IPMI BMC must be able to reach 192.168.8.99 — verify by pinging from the BMC network tool if available.
+- If the ISO path contains spaces or special characters, rename it to remove them.
+- As a fallback, use the iKVM / HTML5 console's built-in virtual media upload (slower, streams from your browser).
+
 ## "device is mounted" or "GPT signature found" warnings from parted
 
 You skipped step 2.4. Run the three wipe commands (`wipefs -a`, `sgdisk --zap-all`, optionally `blkdiscard -f`) before trying `parted` again.
 
 ## Lost SSH after a rebuild
 
-Use IPMI as your fallback path. At boot, the systemd-boot menu lets you pick the previous generation. Common causes:
+Use IPMI as your fallback path (192.168.8.81). At boot, the systemd-boot menu lets you pick the previous generation. Common causes:
 
-- Wrong `physicalNic` in `hosts/x11-4/networking.nix` — bridge never came up.
+- Wrong `physicalNic` in `hosts/x11-5/networking.nix` — bridge never came up.
 - Firewall lost port 22.
 - DNS misconfiguration broke nixos-rebuild fetches.
 
@@ -602,9 +624,9 @@ If the daemon is up but port 8443 is closed, the firewall in `modules/common.nix
 
 # Next steps after the host is up
 
-A few things worth doing once x11-4 is healthy:
+A few things worth doing once x11-5 is healthy:
 
-1. **Tailscale**: add `services.tailscale.enable = true;` to the host config and rebuild, then `sudo tailscale up --advertise-routes=192.168.8.0/24` to make x11-4 a subnet router (or simply join the tailnet as a leaf node).
-2. **Pin the Incus version**: optionally switch from `pkgs.incus` to `pkgs.incus-lts` in `hosts/x11-4/incus.nix` if you want the LTS line.
+1. **Tailscale**: add `services.tailscale.enable = true;` to the host config and rebuild, then `sudo tailscale up --advertise-routes=192.168.8.0/24` to make x11-5 a subnet router (or simply join the tailnet as a leaf node).
+2. **Pin the Incus version**: optionally switch from `pkgs.incus` to `pkgs.incus-lts` in `hosts/x11-5/incus.nix` if you want the LTS line.
 3. **Image cache**: `incus remote list` already includes `images:` and `ubuntu:` by default. No setup needed for normal use.
-4. **First real workload**: spin up a Debian container at 192.168.8.175 and start re-creating one of your Reticulum / MeshChat services in it as a test of the migration pattern.
+4. **First real workload**: spin up a Debian container at 192.168.8.126 and start re-creating one of your Reticulum / MeshChat services in it as a test of the migration pattern.

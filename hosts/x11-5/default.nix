@@ -14,7 +14,7 @@
   boot.loader.efi.canTouchEfiVariables = true;
   boot.loader.systemd-boot.configurationLimit = 10;
 
-  networking.hostName = "x11-4";
+  networking.hostName = "x11-5";
 
   # Match the version of NixOS this host was installed with.
   # DO NOT change this without reading the release notes.
