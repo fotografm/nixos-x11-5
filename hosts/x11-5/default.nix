@@ -1,3 +1,15 @@
+# x11-5 — Supermicro X11 Incus hypervisor at 192.168.8.80
+#
+# This file is the authoritative config for x11-5. It is deployed from
+# this repo, NOT from /etc/nixos/ on the machine. To rebuild:
+#
+#   nixos-rebuild switch --flake github:fotografm/nixos-config#x11-5
+#   -- or from a local clone --
+#   nixos-rebuild switch --flake /path/to/nixos-config#x11-5
+#
+# /etc/nixos/configuration.nix on the machine is the default install
+# template and is intentionally unused. Do not edit it.
+
 { config, pkgs, lib, ... }:
 
 {
