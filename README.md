@@ -1,28 +1,101 @@
 # fotografm/nixos-config
 
-NixOS flake for the fotografm homelab fleet, managed declaratively.
+NixOS flake for the fotografm homelab fleet.
+
+---
+
+## ⚡ Quick reference — how to rebuild each host
+
+### x11-5 (192.168.8.80) — repo is the source of truth
+
+Config lives in **this repo** (`hosts/x11-5/`). The `/etc/nixos/configuration.nix`
+on the machine is the default install template and is **not in use** (it has a
+warning comment at the top saying so). Do not edit it.
+
+**To rebuild x11-5**, SSH in and run from a local clone of this repo:
+
+```
+ssh user@192.168.8.80
+cd ~/repos/nixos-config
+git pull
+sudo nixos-rebuild switch --flake .#x11-5
+```
+
+Or rebuild remotely from this desktop without SSH-ing in:
+
+```
+cd ~/repos/nixos-config
+sudo nixos-rebuild switch --flake .#x11-5 --target-host user@192.168.8.80 --use-remote-sudo
+```
+
+**To update this repo after editing x11-5 config:**
+
+```
+cd ~/repos/nixos-config
+# edit hosts/x11-5/*.nix or modules/common.nix
+git add -p
+git commit -m "describe your change"
+git push
+# then rebuild x11-5 as above
+```
+
+---
+
+### x11-4 (192.168.8.50) — machine is the source of truth
+
+Config lives in **`/etc/nixos/` on x11-4 itself**. The `hosts/x11-4/` folder in
+this repo is a **backup copy only** — it is not used to drive rebuilds.
+
+**To rebuild x11-4**, SSH in and run on the machine:
+
+```
+ssh root@192.168.8.50
+nixos-rebuild switch --flake /etc/nixos#x11-4
+```
+
+**To update the backup in this repo** after changing x11-4's config:
+
+```
+scp root@192.168.8.50:/etc/nixos/configuration.nix ~/repos/nixos-config/hosts/x11-4/configuration.nix
+scp root@192.168.8.50:/etc/nixos/hardware-configuration.nix ~/repos/nixos-config/hosts/x11-4/hardware-configuration.nix
+scp root@192.168.8.50:/etc/nixos/flake.nix ~/repos/nixos-config/hosts/x11-4/flake.nix
+scp root@192.168.8.50:/etc/nixos/flake.lock ~/repos/nixos-config/hosts/x11-4/flake.lock
+cd ~/repos/nixos-config
+git add hosts/x11-4/
+git commit -m "Sync x11-4 config backup"
+git push
+```
+
+---
 
 ## Hosts
 
-| Host | Location | IP | Role |
-|---|---|---|---|
-| `x11-5` | c38 | `192.168.8.80` | Incus hypervisor (containers + VMs) |
+| Host | IP | Role | Config source | Rebuild method |
+|---|---|---|---|---|
+| `x11-5` | `192.168.8.80` | Incus hypervisor | This repo (`hosts/x11-5/`) | `nixos-rebuild switch --flake .#x11-5` on x11-5 |
+| `x11-4` | `192.168.8.50` | Incus hypervisor | `/etc/nixos/` on x11-4 | `nixos-rebuild switch --flake /etc/nixos#x11-4` on x11-4 |
 
 ## Repository layout
 
 ```
 nixos-config/
-├── flake.nix                           # entry point, defines nixosConfigurations
+├── flake.nix                           # entry point — only x11-5 is wired in here
+├── flake.lock
 ├── .gitignore
 ├── README.md
 ├── modules/
-│   └── common.nix                      # shared config (SSH, user, base packages)
+│   └── common.nix                      # shared config (SSH key, user, base packages)
 └── hosts/
-    └── x11-5/
-        ├── default.nix                 # host-level: bootloader, hostname
-        ├── hardware-configuration.nix  # generated during install
-        ├── networking.nix              # bridge br0 + static IP 192.168.8.80
-        └── incus.nix                   # virtualisation.incus + preseed
+    ├── x11-5/                          # ACTIVE — deployed from this repo
+    │   ├── default.nix                 # bootloader, hostname, stateVersion
+    │   ├── hardware-configuration.nix  # generated during install, do not edit
+    │   ├── networking.nix              # bridge br0 + static IP 192.168.8.80
+    │   └── incus.nix                   # virtualisation.incus + preseed
+    └── x11-4/                          # BACKUP ONLY — not deployed from this repo
+        ├── configuration.nix           # copy of /etc/nixos/configuration.nix on x11-4
+        ├── hardware-configuration.nix  # copy of /etc/nixos/hardware-configuration.nix
+        ├── flake.nix                   # copy of /etc/nixos/flake.nix on x11-4
+        └── flake.lock                  # copy of /etc/nixos/flake.lock on x11-4
 ```
 
 ## Design decisions
