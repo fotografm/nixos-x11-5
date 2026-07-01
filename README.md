@@ -41,29 +41,21 @@ git push
 
 ---
 
-### x11-4 (192.168.8.50) — machine is the source of truth
+### x11-4 (192.168.8.50) — self-managed, own GitHub repo
 
-Config lives in **`/etc/nixos/` on x11-4 itself**. The `hosts/x11-4/` folder in
-this repo is a **backup copy only** — it is not used to drive rebuilds.
+Config lives in **`/etc/nixos/` on x11-4 itself**, which is its own git repo.
+It is **not managed from this repo** — see
+[fotografm/nixos-x11-4](https://github.com/fotografm/nixos-x11-4) instead.
 
-**To rebuild x11-4**, SSH in and run on the machine:
+**To make config changes**, SSH in, edit, commit, and push:
 
 ```
 ssh root@192.168.8.50
+vim /etc/nixos/configuration.nix
 nixos-rebuild switch --flake /etc/nixos#x11-4
-```
-
-**To update the backup in this repo** after changing x11-4's config:
-
-```
-scp root@192.168.8.50:/etc/nixos/configuration.nix ~/repos/nixos-config/hosts/x11-4/configuration.nix
-scp root@192.168.8.50:/etc/nixos/hardware-configuration.nix ~/repos/nixos-config/hosts/x11-4/hardware-configuration.nix
-scp root@192.168.8.50:/etc/nixos/flake.nix ~/repos/nixos-config/hosts/x11-4/flake.nix
-scp root@192.168.8.50:/etc/nixos/flake.lock ~/repos/nixos-config/hosts/x11-4/flake.lock
-cd ~/repos/nixos-config
-git add hosts/x11-4/
-git commit -m "Sync x11-4 config backup"
-git push
+git -C /etc/nixos add -p
+git -C /etc/nixos commit -m "describe your change"
+git -C /etc/nixos push
 ```
 
 ---
@@ -73,7 +65,7 @@ git push
 | Host | IP | Role | Config source | Rebuild method |
 |---|---|---|---|---|
 | `x11-5` | `192.168.8.80` | Incus hypervisor | This repo (`hosts/x11-5/`) | `nixos-rebuild switch --flake .#x11-5` on x11-5 |
-| `x11-4` | `192.168.8.50` | Incus hypervisor | `/etc/nixos/` on x11-4 | `nixos-rebuild switch --flake /etc/nixos#x11-4` on x11-4 |
+| `x11-4` | `192.168.8.50` | Incus hypervisor | [fotografm/nixos-x11-4](https://github.com/fotografm/nixos-x11-4) | `nixos-rebuild switch --flake /etc/nixos#x11-4` on x11-4 |
 
 ## Repository layout
 
@@ -86,16 +78,14 @@ nixos-config/
 ├── modules/
 │   └── common.nix                      # shared config (SSH key, user, base packages)
 └── hosts/
-    ├── x11-5/                          # ACTIVE — deployed from this repo
-    │   ├── default.nix                 # bootloader, hostname, stateVersion
-    │   ├── hardware-configuration.nix  # generated during install, do not edit
-    │   ├── networking.nix              # bridge br0 + static IP 192.168.8.80
-    │   └── incus.nix                   # virtualisation.incus + preseed
-    └── x11-4/                          # BACKUP ONLY — not deployed from this repo
-        ├── configuration.nix           # copy of /etc/nixos/configuration.nix on x11-4
-        ├── hardware-configuration.nix  # copy of /etc/nixos/hardware-configuration.nix
-        ├── flake.nix                   # copy of /etc/nixos/flake.nix on x11-4
-        └── flake.lock                  # copy of /etc/nixos/flake.lock on x11-4
+    └── x11-5/                          # ACTIVE — deployed from this repo
+        ├── default.nix                 # bootloader, hostname, stateVersion
+        ├── hardware-configuration.nix  # generated during install, do not edit
+        ├── networking.nix              # bridge br0 + static IP 192.168.8.80
+        └── incus.nix                   # virtualisation.incus + preseed
+
+# x11-4 is self-managed — its config lives at /etc/nixos/ on the machine
+# and is tracked in its own repo: https://github.com/fotografm/nixos-x11-4
 ```
 
 ## Design decisions
