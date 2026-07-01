@@ -1,4 +1,6 @@
 {
+  # Root flake — entry point for repo-managed hosts (currently x11-5).
+  # x11-4 has its own standalone flake in hosts/x11-4/flake.nix (backup only).
   description = "fotografm NixOS fleet";
 
   inputs = {

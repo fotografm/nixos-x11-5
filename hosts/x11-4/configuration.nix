@@ -91,7 +91,6 @@
   users.users.user = {
     isNormalUser = true;
     extraGroups = [ "wheel" "incus-admin" ];
-    initialPassword = "changeme";
     openssh.authorizedKeys.keys = [
       # "ssh-ed25519 AAAA... user@h510"
     ];
