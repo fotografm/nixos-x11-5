@@ -33,7 +33,12 @@
       # only IPMI console.
       # =====================================================================
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDRXYcz44CkrLPcHpb92ueOuHdM1hSL3Kq0dORghTbCw fotografm@gmail.com"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICyv13iuXAo7+Sf9aZXHGM/yP0786ir/2g5QqlTlb1QE t480a"
     ];
+    # Fallback password login for cases where no trusted machine has this
+    # host's key yet. Hash lives only on the server, never in this repo -
+    # this repo (public) only ever references the file path.
+    hashedPasswordFile = "/etc/nixos/secrets/user-password-hash";
   };
 
   security.sudo.wheelNeedsPassword = false;
@@ -42,7 +47,7 @@
   services.openssh = {
     enable = true;
     settings = {
-      PasswordAuthentication = false;
+      PasswordAuthentication = true;
       KbdInteractiveAuthentication = false;
       PermitRootLogin = "no";
     };
