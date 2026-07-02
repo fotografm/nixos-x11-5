@@ -75,6 +75,36 @@ sudo nixos-rebuild switch --rollback
 
 ---
 
+## Password storage
+
+`user` has a password-based SSH fallback (`PasswordAuthentication = true`) for
+logging in from a machine that doesn't have this host's key trusted yet.
+
+The password hash is **never committed to this repo** (it's public) - it lives
+only on x11-5 itself, at `/etc/nixos/secrets/user-password-hash`, which is
+root-only readable (`chmod 600`) and lives outside any git working tree (this
+repo's checkout is at `~/repos/nixos-x11-5`, not `/etc/nixos`).
+`modules/common.nix` only ever references the file *path* via
+`hashedPasswordFile`.
+
+To set or rotate the password, on x11-5:
+
+```
+ssh user@192.168.8.80
+mkpasswd -m sha-512 | sudo tee /etc/nixos/secrets/user-password-hash > /dev/null
+sudo chmod 600 /etc/nixos/secrets/user-password-hash
+sudo nixos-rebuild switch --flake .#x11-5
+```
+
+`root` has no password and `PermitRootLogin = "no"` - root cannot log in over
+SSH under any circumstances. Use `user` + sudo (passwordless for `wheel`).
+
+This requires `users.mutableUsers = false;` (already set). Without it, NixOS
+does not enforce a declared password onto an account that already has one set
+outside of config.
+
+---
+
 ## Repository layout
 
 ```
